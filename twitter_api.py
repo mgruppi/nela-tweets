@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 import time
 import os
 from datetime import datetime
+import argparse
 
 
 class TwitterAPI():
@@ -78,6 +79,12 @@ class TwitterAPI():
 
 def main():
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("database", type=str, help="Path to NELA database.")
+
+    args = parser.parse_args()
+    path = args.database
+
     with open("oauth2.key") as fin:
         credentials = json.load(fin)
 
@@ -86,9 +93,6 @@ def main():
         os.mkdir(path_user)
 
     api = TwitterAPI(credentials)
-
-    path = "../data/dataverse/release/nela-gt-2020.db"
-
     con = sqlite3.connect(path)
     tweets = load_all_tweets(con)
     t_ids = [t[2] for t in tweets]
