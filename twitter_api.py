@@ -108,6 +108,8 @@ class TwitterAPI:
             try:
                 status, r = self.get_follows(user_id, endpoint=endpoint, next_token=next_token)
                 if status == 200:
+                    if "data" not in r:
+                        break
                     data.extend(r["data"])
                     print("%d" % len(data))
                     if "next_token" in r["meta"]:
@@ -120,7 +122,7 @@ class TwitterAPI:
                 else:
                     break
             except Exception as e:
-                print(e)
+                print(status, e)
         return data
 
     def get_follows_batch(self, usernames, path_out=["follows_data"]):
