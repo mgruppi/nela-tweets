@@ -1,14 +1,22 @@
 from twitter_api import TwitterAPI
 import json
 import os
+import argparse
 
 
 def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", type=str, help="Path to input list of users.")
+
+    args = parser.parse_args()
+    path_user = args.path
+
     with open("oauth2.key") as fin:
         auth = json.load(fin)
     api = TwitterAPI(auth)
 
-    with open("user_data/user_data.json") as fin:
+    with open(path_user) as fin:
         user_data = json.load(fin)
 
     out_path = "follows"
