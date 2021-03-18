@@ -11,8 +11,6 @@ query = " SELECT d.source, count(t.id) FROM " \
         " GROUP BY source"
 
 print(query)
-files = ["../data/dataverse/release/nela-gt-2020.db", "../data/dataverse/release/nela-gt-2020.db", "../data/dataverse/release/nela-gt-2020.db"]
-
 tweet_count = dict()
 for i, path in enumerate(files):
         con = sqlite3.connect(path)
