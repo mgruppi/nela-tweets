@@ -201,7 +201,7 @@ def build_source_network(tweets, user_data, p_threshold=None):
             prob = 0
             for author in common_refs:
                 if author in user_data:
-                    scaling_factor = 1/(np.log(user_data[author]["public_metrics"]["followers_count"]))
+                    scaling_factor = 1/(1e-5+np.log(user_data[author]["public_metrics"]["followers_count"]))
                 else:
                     scaling_factor = 1
                 prob += sources[u][author]*sources[v][author] * scaling_factor
