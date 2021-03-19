@@ -38,8 +38,7 @@ def load_all_tweets(con, row_ids=None):
         rid_set = set(row_ids)
         all_results = con.cursor().execute(query).fetchall()
         for i, r in enumerate(all_results):
-            print(r)
-            if r[-1] in rid_set:
+            if str(r[-1]) in rid_set:
                 result.append(r)
     return result
 
@@ -150,12 +149,13 @@ def build_network(tweets, cutoff=1):
     return g
 
 
-def build_source_network(tweets, user_data):
+def build_source_network(tweets, user_data, p_threshold=None):
     """
     Builds a network of source-source relationships.
     Two nodes u, v represent sources that are connected if they share a common embedded tweet author.
     :param tweets: Tweet data.
     :param user_data: Dictionary keyed by username, containing user information.
+    :param p_threshold: Edge weight cutoff. If `None`, use the distribution mean as cutoff.
     :return: g NetworkX undirected graph.
     """
 
@@ -190,7 +190,6 @@ def build_source_network(tweets, user_data):
             sources[src][a] = sources[src][a]/num_references
 
     g = nx.Graph()
-    p_threshold = 0.01
     x = list()  # store edge weight distribution.
     ebunch = list()  # store edge (u, v, weight) tuples.
     # Iterate over each pair of sources in `sources`.
@@ -213,31 +212,34 @@ def build_source_network(tweets, user_data):
     x = np.array(x, dtype=np.float32)
     print("Mean edge weight(prob):", x.mean(), "+-", x.std())
 
+    if p_threshold is None:
+        p_threshold = x.mean()
+
     e_bunch_filter = list()
 
     for e in ebunch:  # (u, v, weight) tuples
         if e[2] > p_threshold:
             e_bunch_filter.append(e)
     g.add_weighted_edges_from(e_bunch_filter)
-    #  -- deprecated --
-    # for a in authors:
-    #     for i, src_a in enumerate(authors[a]):
-    #         for j, src_b in enumerate(list(authors[a].keys())[i+1:]):  # create pairwise links
-    #             g.add_edge(src_a, src_b, weight_a=authors[a][src_a], weight_b=authors[a][src_b])
+
     return g
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=str, help="Path to output network.")
+    parser.add_argument("--rowid", type=str, default=None, help="Path to csv file of rowids (to select articles).")
+    parser.add_argument("--p_threshold", type=float, default=None, help="Cutoff threshold for edge weights.")
     args = parser.parse_args()
 
     path_user_data = "user_data/user_data.json"
     path_gml = args.output
-    path_row_ids = "../data/nela/extracted_articles/all_covid_articles.txt"
 
-    row_ids = load_article_rowids(path_row_ids)
-    print("-- Topic articles:", len(row_ids))
+    if args.rowid:
+        row_ids = load_article_rowids(args.rowid)
+        print("-- Topic articles:", len(row_ids))
+    else:
+        row_ids = None
 
     user_data = load_user_data(path_user_data)
 
@@ -261,7 +263,7 @@ def main():
     print("Loaded %d tweets from %d authors." % (len(tweets), len(t_authors)))
 
     # g = build_network(tweets, cutoff=5)
-    g = build_source_network(tweets, user_data)
+    g = build_source_network(tweets, user_data, p_threshold=args.p_threshold)
 
     print("Setting node attributes...")
     for n in g.nodes:
@@ -274,7 +276,6 @@ def main():
                 g.nodes[n]["cred"] = -1.0
             else:
                 g.nodes[n]["cred"] = 0.0
-
         else:
             g.nodes[n]["credibility"] = "unlabeled"
             g.nodes[n]["class"] = "news"
