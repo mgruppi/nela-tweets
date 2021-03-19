@@ -98,13 +98,17 @@ def get_tweet_author(idx):
     return None
 
 
-def get_tweet_authors(ids):
+def get_tweet_authors(ids, return_counts=False):
     """
     Returns the authors for a given list of tweet URLs.
     :param ids: Tweet URLs.
-    :return authors: Set of authors.
+    :param return_counts: If True, return value is a dictionary with no. of embedded tweets by each author.
+    :return authors: Set of authors. If retorn_counts is True, returns a dictionary of author(str) -> count (int).
     """
-    authors = set()
+    if return_counts:
+        authors = dict()
+    else:
+        authors = set()
     regex = re.compile("twitter.com/(?P<author>\w+)/")
 
     for idx in ids:
@@ -113,7 +117,12 @@ def get_tweet_authors(ids):
         result = regex.search(idx)
         if result is not None:
             author = result.groups()[0]
-            authors.add(author)
+            if return_counts:
+                if author not in authors:
+                    authors[author] = 0
+                authors[author] += 1
+            else:
+                authors.add(author)
     return authors
 
 
@@ -250,12 +259,12 @@ def main():
         fin.readline()
         labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
 
-    path = "../data/dataverse/release/nela-gt-2020.db"
+    path = "../data/nela/nela-gt-2020.db"
     con = sqlite3.connect(path)
 
     tweets = load_all_tweets(con, row_ids=row_ids)
     t_ids = [t[2] for t in tweets]
-    t_authors = get_tweet_authors(t_ids)
+    t_authors = get_tweet_authors(t_ids, return_counts=True)
 
     found = sum(author in user_data for author in t_authors)
 
@@ -284,6 +293,12 @@ def main():
     print(len(g), "nodes", len(g.edges), "edges.")
     nx.write_gml(g, path_gml)
     print("Saved to %s" % path_gml)
+
+    with open(path_gml.replace(".gml", ".csv"), "w") as fout:
+        # Write ranking of most cited authors
+        fout.write("author,embedded_tweets\n")
+        for author in sorted(t_authors, key=lambda a: t_authors[a], reverse=True):
+            fout.write("%s,%d\n" % (author, t_authors[author]))
 
 
 if __name__ == "__main__":
