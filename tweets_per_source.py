@@ -5,7 +5,7 @@ import numpy as np
 files = ["/data/NELA-GT-2018/nela-gt-2018.db", "/data/NELA-GT-2019/nela-gt-2019.db",
          "/data/NELA-GT-2020/nela-gt-2020.db"]
 
-query = " SELECT d.source, count(t.id) as tweets, count(distinct article_id) as articles FROM " \
+query = " SELECT d.source, count(*) as tweets, count(distinct article_id) as articles FROM " \
         " tweet t INNER JOIN newsdata d " \
         " ON t.article_id = d.id " \
         " GROUP BY source"
