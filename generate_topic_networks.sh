@@ -16,7 +16,7 @@ do
   echo "$output"
   python3 network.py "networks/0.5/network-$output" \
           --rowid "$f" \
-
+	  --bipartite
 done
 
 
@@ -28,5 +28,6 @@ do
   echo "$output"
   python3 network.py "networks/0.75/network-$output" \
           --rowid "$f" \
-          --p_threshold="$p_threshold"
+          --p_threshold="$p_threshold" \
+	  --bipartite
 done

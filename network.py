@@ -4,6 +4,7 @@ import sqlite3
 import re
 import numpy as np
 import json
+from collections import defaultdict
 
 
 def load_user_data(path):
@@ -126,44 +127,65 @@ def get_tweet_authors(ids, return_counts=False):
     return authors
 
 
-def build_network(tweets, cutoff=1):
+def build_network(tweets, user_data, labels, p_threshold, min_links=5):
     """
     Builds the network of source-tweet interaction.
     By default, it connects sources to twitter accounts based on whether a source embeds a tweet by that user.
     :param tweets: Rows of tweets containing embedded_tweet, article_id, source.
-    :param cutoff: Cutoff point for edge weights. Only include edges whose weight is > `min_count`.
+    :param user_data: JSON object containing Twitter user data.
+    :param labels: Source credibility labels.
+    :param p_threshold: Cutoff threshold for edges.
+    :param min_links: Nodes with fewer than `min_link` will be removed from the network.
     :return g: NetworkX graph.
     """
     g = nx.Graph()
-    weights = dict()
+    edges = defaultdict(int)
     for t in tweets:
         _id = clean_tweet_id(t[2])
-        tgt = get_tweet_author(_id)  # Target (tweet author)
-        src = t[1]  # Source (news source name)
-        if src is None or tgt is None:
-            # print("ERROR", _id, src, tgt)
+        t_author = get_tweet_author(_id)
+        src = t[1]
+
+        if t_author is None:
             continue
+        if t_author in user_data:
+            followers = int(user_data[t_author]["public_metrics"]["followers_count"])
+            following = int(user_data[t_author]["public_metrics"]["following_count"])
+            tweet_count = int(user_data[t_author]["public_metrics"]["tweet_count"])
+        else:
+            followers = 1
+            following = 1
+            tweet_count = 1
 
-        if (src, tgt) not in weights:
-            weights[(src, tgt)] = 0
-        weights[(src, tgt)] += 1
+        g.add_node(t_author, class_="twitter", followers=followers, following=following, tweet_count=tweet_count)
+        # Get node attributes
+        if src in labels:
+            cred = labels[src]
+        else:
+            cred = "unlabeled"
+        g.add_node(src, class_="news", credibility=cred)
+        edges[(t_author, src)] += 1 / (np.log(followers + 1e-6))
 
-    # Prepare edge bunch. This is a 3-tuple consisting of (src, tgt, w) where w is the edge weight.
-    ebunch = list()
-    for e in weights:
-        if weights[e] > cutoff:
-            ebunch.append((e[0], e[1], weights[e]))
-    g.add_weighted_edges_from(ebunch)
+    if p_threshold is None:
+        x = np.array(list(edges.values()))
+        p_threshold = x.mean()
+
+    for e in edges:
+        if edges[e] > p_threshold:
+            g.add_edge(e[0], e[1], weight=edges[e])
+
+    to_remove = [node for node, degree in g.degree() if degree < min_links]
+    g.remove_nodes_from(to_remove)
 
     return g
 
 
-def build_source_network(tweets, user_data, p_threshold=None):
+def build_source_network(tweets, user_data, labels, p_threshold=None):
     """
     Builds a network of source-source relationships.
     Two nodes u, v represent sources that are connected if they share a common embedded tweet author.
     :param tweets: Tweet data.
     :param user_data: Dictionary keyed by username, containing user information.
+    :param labels: Source labels.
     :param p_threshold: Edge weight cutoff. If `None`, use the distribution mean as cutoff.
     :return: g NetworkX undirected graph.
     """
@@ -202,10 +224,8 @@ def build_source_network(tweets, user_data, p_threshold=None):
     x = list()  # store edge weight distribution.
     ebunch = list()  # store edge (u, v, weight) tuples.
     # Iterate over each pair of sources in `sources`.
-    num_pairs = len(sources)**2
     for i, u in enumerate(sources.keys()):
         for j, v in enumerate(list(sources.keys())[i+1:]):
-            print("Computing edge weights (%2.2f)" % (100*(i*len(sources)+j+1)/num_pairs), end="\r")
             common_refs = set.intersection(set(sources[u]), set(sources[v]))
             prob = 0
             for author in common_refs:
@@ -231,6 +251,22 @@ def build_source_network(tweets, user_data, p_threshold=None):
             e_bunch_filter.append(e)
     g.add_weighted_edges_from(e_bunch_filter)
 
+    print("Setting node attributes...")
+    for n in g.nodes:
+        if n in labels:
+            g.nodes[n]["credibility"] = labels[n]
+            g.nodes[n]["class"] = "news"
+            if labels[n] == "0":
+                g.nodes[n]["cred"] = 1.0
+            elif labels[n] == "1" or labels[n] == "2":
+                g.nodes[n]["cred"] = -1.0
+            else:
+                g.nodes[n]["cred"] = 0.0
+        else:
+            g.nodes[n]["credibility"] = "unlabeled"
+            g.nodes[n]["class"] = "news"
+            g.nodes[n]["cred"] = 0.0
+
     return g
 
 
@@ -239,6 +275,7 @@ def main():
     parser.add_argument("output", type=str, help="Path to output network.")
     parser.add_argument("--rowid", type=str, default=None, help="Path to csv file of rowids (to select articles).")
     parser.add_argument("--p_threshold", type=float, default=None, help="Cutoff threshold for edge weights.")
+    parser.add_argument("--bipartite", action="store_true", help="Create graph with both source and twitter nodes.")
     args = parser.parse_args()
 
     path_user_data = "user_data/user_data.json"
@@ -271,24 +308,10 @@ def main():
     print("Authors", found, len(t_authors))
     print("Loaded %d tweets from %d authors." % (len(tweets), len(t_authors)))
 
-    # g = build_network(tweets, cutoff=5)
-    g = build_source_network(tweets, user_data, p_threshold=args.p_threshold)
-
-    print("Setting node attributes...")
-    for n in g.nodes:
-        if n in labels:
-            g.nodes[n]["credibility"] = labels[n]
-            g.nodes[n]["class"] = "news"
-            if labels[n] == "0":
-                g.nodes[n]["cred"] = 1.0
-            elif labels[n] == "1" or labels[n] == "2":
-                g.nodes[n]["cred"] = -1.0
-            else:
-                g.nodes[n]["cred"] = 0.0
-        else:
-            g.nodes[n]["credibility"] = "unlabeled"
-            g.nodes[n]["class"] = "news"
-            g.nodes[n]["cred"] = 0.0
+    if args.bipartite:
+        g = build_network(tweets, user_data, labels, args.p_threshold)
+    else:
+        g = build_source_network(tweets, user_data, labels, p_threshold=args.p_threshold)
 
     print(len(g), "nodes", len(g.edges), "edges.")
     nx.write_gml(g, path_gml)
