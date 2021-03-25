@@ -3,6 +3,8 @@ mkdir "networks"
 mkdir "networks/0.5"
 mkdir "networks/0.75"
 
+exclude="realDonaldTrump"
+
 p_threshold=0
 
 path1="topics/0.5"
@@ -15,8 +17,8 @@ do
   output="${output/.txt/.gml}"
   echo "$output"
   python3 network.py "networks/0.5/network-$output" \
-          --rowid "$f" \
-	  --bipartite
+          --rowid "$f"  \
+	        --exclude_authors "$exclude"
 done
 
 
@@ -29,5 +31,5 @@ do
   python3 network.py "networks/0.75/network-$output" \
           --rowid "$f" \
           --p_threshold="$p_threshold" \
-	  --bipartite
+	        --exclude_authors "$exclude"
 done

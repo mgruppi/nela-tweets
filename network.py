@@ -127,7 +127,7 @@ def get_tweet_authors(ids, return_counts=False):
     return authors
 
 
-def build_network(tweets, user_data, labels, p_threshold, min_links=5):
+def build_network(tweets, user_data, labels, p_threshold, min_links=5, exclude_authors={}):
     """
     Builds the network of source-tweet interaction.
     By default, it connects sources to twitter accounts based on whether a source embeds a tweet by that user.
@@ -136,6 +136,7 @@ def build_network(tweets, user_data, labels, p_threshold, min_links=5):
     :param labels: Source credibility labels.
     :param p_threshold: Cutoff threshold for edges.
     :param min_links: Nodes with fewer than `min_link` will be removed from the network.
+    :param exclude_authors: Usernames to exclude when building the network.
     :return g: NetworkX graph.
     """
     g = nx.Graph()
@@ -145,7 +146,7 @@ def build_network(tweets, user_data, labels, p_threshold, min_links=5):
         t_author = get_tweet_author(_id)
         src = t[1]
 
-        if t_author is None:
+        if t_author is None or t_author in exclude_authors:  # Skip this author
             continue
         if t_author in user_data:
             followers = int(user_data[t_author]["public_metrics"]["followers_count"])
@@ -179,7 +180,7 @@ def build_network(tweets, user_data, labels, p_threshold, min_links=5):
     return g
 
 
-def build_source_network(tweets, user_data, labels, p_threshold=None):
+def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_authors={}):
     """
     Builds a network of source-source relationships.
     Two nodes u, v represent sources that are connected if they share a common embedded tweet author.
@@ -187,6 +188,7 @@ def build_source_network(tweets, user_data, labels, p_threshold=None):
     :param user_data: Dictionary keyed by username, containing user information.
     :param labels: Source labels.
     :param p_threshold: Edge weight cutoff. If `None`, use the distribution mean as cutoff.
+    :param exclude_authors: (set) Authors to exclude when building network.
     :return: g NetworkX undirected graph.
     """
 
@@ -199,6 +201,10 @@ def build_source_network(tweets, user_data, labels, p_threshold=None):
         _id = clean_tweet_id(t[2])
         t_author = get_tweet_author(_id)
         src = t[1]
+
+        if t_author in exclude_authors:  # Skip this author
+            continue
+
         if t_author not in authors:
             authors[t_author] = dict()
         if src not in authors[t_author]:
@@ -275,6 +281,8 @@ def main():
     parser.add_argument("output", type=str, help="Path to output network.")
     parser.add_argument("--rowid", type=str, default=None, help="Path to csv file of rowids (to select articles).")
     parser.add_argument("--p_threshold", type=float, default=None, help="Cutoff threshold for edge weights.")
+    parser.add_argument("--exclude_authors", type=str, default={}, nargs="+",
+                        help="Authors to ignore when building the network.")
     parser.add_argument("--bipartite", action="store_true", help="Create graph with both source and twitter nodes.")
     args = parser.parse_args()
 
@@ -286,6 +294,8 @@ def main():
         print("-- Topic articles:", len(row_ids))
     else:
         row_ids = None
+
+    exclude_authors = set(args.exclude_authors)
 
     user_data = load_user_data(path_user_data)
 
@@ -309,9 +319,10 @@ def main():
     print("Loaded %d tweets from %d authors." % (len(tweets), len(t_authors)))
 
     if args.bipartite:
-        g = build_network(tweets, user_data, labels, args.p_threshold)
+        g = build_network(tweets, user_data, labels, args.p_threshold, exclude_authors=exclude_authors)
     else:
-        g = build_source_network(tweets, user_data, labels, p_threshold=args.p_threshold)
+        g = build_source_network(tweets, user_data, labels, p_threshold=args.p_threshold,
+                                 exclude_authors=exclude_authors)
 
     print(len(g), "nodes", len(g.edges), "edges.")
     nx.write_gml(g, path_gml)
