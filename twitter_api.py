@@ -31,15 +31,16 @@ class TwitterAPI:
             data = response.json()
             return response.status_code, data
         else:
-            return response.status_code, {}
+            return response.status_code, response
 
-    def get_users_batch(self, usernames, path_out="user_data"):
+    def get_users_batch(self, usernames, path_out="user_data", return_any=False):
         """
         Given an input list of usernames, send requests through the Twitter API to get user info.
         Send batches of 100 users at a time, once the rate limit is exceeded, sleep for 15 minutes.
         Before sleeping, dumps current batches into a JSON in user_data/.
         :param usernames: List of usernames to query from Twitter.
         :param path_out: Path to save output JSONs.
+        :param return_any: Returns user regardless of the HTTP response obtained.
         :return:
         """
         batch_size = 100
@@ -66,6 +67,8 @@ class TwitterAPI:
                         data = list()
                         # Sleep before next loop
                         time.sleep(60*15)  # Sleep for 15 minutes before next batch.
+                    elif return_any:
+                        data.extend(r)
             except Exception as e:
                 print(e)
 
