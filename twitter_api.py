@@ -68,6 +68,7 @@ class TwitterAPI:
                         # Sleep before next loop
                         time.sleep(60*15)  # Sleep for 15 minutes before next batch.
                     elif return_any:
+                        print(r)
                         data.extend(r)
             except Exception as e:
                 print(e)

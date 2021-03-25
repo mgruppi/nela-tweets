@@ -37,4 +37,6 @@ data = dict()
 if not os.path.exists("missing_accounts"):
     os.mkdir("missing_accounts")
 
-data = api.get_users_batch(a, path_out="missing_accounts", return_any=True)
+data = api.get_users_batch(missing_authors, path_out="missing_accounts", return_any=True)
+
+print(len(data))
