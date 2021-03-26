@@ -4,7 +4,7 @@ from network import clean_tweet_id, get_tweet_author, load_user_data
 path = "../data/nela/nela-gt-2020.db"
 output = "twitter_info.csv"
 
-user_data = load_user_data("user_data/user_data.json")
+user_data = load_user_data("user_data/user_list.json")
 
 con = sqlite3.connect(path)
 query = "SELECT t.rowid, t.embedded_tweet, d.source " \

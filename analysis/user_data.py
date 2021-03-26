@@ -6,7 +6,7 @@ import numpy as np
 
 
 def main():
-    path = "../user_data/user_data.json"
+    path = "../user_data/user_list.json"
 
     with open(path) as fin:
         data = json.load(fin)

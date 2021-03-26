@@ -13,12 +13,11 @@ def load_user_data(path):
     :param path: Path to JSON file.
     :return user_data: JSON object indexed by username.
     """
-    user_data = dict()
     with open(path) as fin:
-        data = json.load(fin)
+        user_data = json.load(fin)
+    # for user in data:
+    #     user_data[user["username"]] = user
 
-    for user in data:
-        user_data[user["username"]] = user
     return user_data
 
 
