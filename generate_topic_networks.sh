@@ -18,7 +18,7 @@ do
   echo "$output"
   python3 network.py "networks/0.5/network-$output" \
           --rowid "$f"  \
-	        --exclude_authors "$exclude"
+#	        --exclude_authors "$exclude"
 done
 
 
@@ -31,5 +31,5 @@ do
   python3 network.py "networks/0.75/network-$output" \
           --rowid "$f" \
           --p_threshold="$p_threshold" \
-	        --exclude_authors "$exclude"
+#	        --exclude_authors "$exclude"
 done

@@ -46,6 +46,7 @@ class TwitterAPI:
         batch_size = 100
         data = list()
         count = 0  # count successful queries
+        errors = list()
         for i in range(0, len(usernames), 100):
             try:
                 print("(%d-%d) : %d" % (i, i+batch_size-1, count))
@@ -57,6 +58,7 @@ class TwitterAPI:
                     status_code, r = self.get_users(batch)
                     if status_code == 200:
                         data.extend(r["data"])
+                        errors.extend(r["errors"])
                         count += len(r["data"])
                     elif status_code == 429:
                         # We are about to sleep, dump current data and sleep.
@@ -77,6 +79,9 @@ class TwitterAPI:
             fname = datetime.now().strftime("%s") + ".json"
             with open(os.path.join(path_out, fname), "w") as fout:
                 json.dump(data, fout)
+
+        with open("user_errors.json", "w") as fout:
+            json.dump(errors, fout)
 
         return data
 
