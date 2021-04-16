@@ -21,12 +21,27 @@ for i, path in enumerate(files):
                 tweet_count[row[0]][i] = row[1]
                 tweet_count[row[0]][i+len(files)] = row[2]
 
+article_count = dict()
+# Collects the total number of article per source for each input database.
+query_articles = "SELECT source, count(id) as articles FROM newsdata GROUP BY source"
+for i, path in enumerate(files):
+        con = sqlite3.connect(path)
+        result = con.execute(query_articles)
+        for row in result.fetchall():
+                if row[0] not in article_count:
+                        article_count[row[0]] = np.zeros(len(files), dtype=np.int32)
+                article_count[row[0]][i] = row[1]
+
 for src in sorted(tweet_count):
         print(src, tweet_count[src])
 path_out = "tweets-per-source.csv"
+# Writes out CSV file with tweets, tweet_articles, and total articles for each input database.
 with open(path_out, "w") as fout:
-        fout.write("source,tweets_2018,tweets_2019,tweets_2020,articles_2018,articles_2019,articles_2020\n")
+        fout.write("source,tweets_2018,tweets_2019,tweets_2020,tweet_articles_2018,tweet_articles_2019,"
+                   "tweet_articles_2020,articles_2018,articles_2019,articles_2020\n")
         for src in sorted(tweet_count):
-                fout.write("%s,%d,%d,%d,%d,%d,%d\n" % (src, tweet_count[src][0], tweet_count[src][1],
-                                                       tweet_count[src][2],
-                                                       tweet_count[src][3], tweet_count[src][4], tweet_count[src][5]))
+                fout.write("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d\n" % (src, tweet_count[src][0], tweet_count[src][1],
+                                                                tweet_count[src][2], tweet_count[src][3],
+                                                                tweet_count[src][4], tweet_count[src][5],
+                                                                article_count[src][0], article_count[src][1],
+                                                                article_count[src][2]))
