@@ -29,15 +29,14 @@ def main():
     if args.resume:
         for root, dirs, files in os.walk(args.resume):
             for f in files:
-                with open(os.path.join(root, f)) as fin:
-                    data = json.load(fin)
-                for user in data:
-                    prev_users.add(user)
+                # File f starts with user id followed by '-following.json'.
+                _id = f.split("-")[0]
+                prev_users.add(_id)
 
     for user in user_data:
-        if user in prev_users:  # Skip this user if already found
-            continue
         _id = user["id"]
+        if _id in prev_users:  # Skip this user if already found
+            continue
 
         if not args.only_following:  # Skip followers
             followers = api.get_all_follows(_id, endpoint="followers")
