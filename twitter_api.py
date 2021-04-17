@@ -26,12 +26,16 @@ class TwitterAPI:
         payload = {"usernames": ",".join(usernames),
                    "user.fields": ",".join(fields)}
 
-        response = self.session.get(url, headers=self.headers, params=payload)
-        if response.status_code == 200:
-            data = response.json()
-            return response.status_code, data
-        else:
-            return response.status_code, response
+        try:
+            response = self.session.get(url, headers=self.headers, params=payload)
+        except Exception as e:
+            print(e)
+            if response.status_code == 200:
+                data = response.json()
+                return response.status_code, data
+            else:
+                return response.status_code, response
+        return 400, {}
 
     def get_users_batch(self, usernames, path_out="user_data", return_any=False):
         """
@@ -102,13 +106,18 @@ class TwitterAPI:
 
         payload = {"pagination_token": next_token, "max_results": max_results,
                    "user.fields": ",".join(fields)}
-        response = self.session.get(url, headers=self.headers, params=payload)
 
-        if response.status_code == 200:
-            data = response.json()
-            return response.status_code, data
-        else:
-            return response.status_code, None
+        try:
+            response = self.session.get(url, headers=self.headers, params=payload)
+            if response.status_code == 200:
+                data = response.json()
+                return response.status_code, data
+            else:
+                return response.status_code, None
+        except Exception as e:
+            print(e)
+
+        return 400, None
 
     def get_all_follows(self, user_id, endpoint="followers"):
         data = list()
