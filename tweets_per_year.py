@@ -1,12 +1,13 @@
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
-import seaborn as sb
 import numpy as np
 
 """
 Plots figures showing number of Tweets per year (2018, 2019, 2020) and per source.
 """
+
+drop_zeros = True  # Drop rows that contains a zero in either of tweets_2018, tweets_2019, tweets_2020.
 
 font = {
     "family": "Liberation Sans",
@@ -21,6 +22,10 @@ with open("data/labels.csv") as fin:
 
 df = pd.read_csv("data/tweets-per-source.csv")
 
+if drop_zeros:
+    df = df[(df["tweets_2018"] != 0) & (df["tweets_2019"] != 0) & (df["tweets_2020"] != 0)]
+
+print(df)
 
 tweets = np.array([df["tweets_2018"].sum(), df["tweets_2019"].sum(), df["tweets_2020"].sum()], dtype=np.int)
 tweet_articles = np.array([df["tweet_articles_2018"].sum(), df["tweet_articles_2019"].sum(),
@@ -47,6 +52,6 @@ ax.set_xlabel("Year")
 ax.set_ylabel("Embedded tweets")
 plt.legend()
 plt.tight_layout()
-fig.savefig("tweets-per-source.pdf", format="pdf")
+fig.savefig("results/tweets-per-source.pdf", format="pdf")
 
 
