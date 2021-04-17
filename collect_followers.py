@@ -9,6 +9,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=str, help="Path to input list of users.")
     parser.add_argument("--only_following", action="store_true", help="Only collect following (not followers).")
+    parser.add_argument("--resume", type=str, default=None, help="Path to previous data files to resume collection.")
 
     args = parser.parse_args()
     path_user = args.path
@@ -24,7 +25,18 @@ def main():
     if not os.path.exists(out_path):
         os.mkdir(out_path)
 
+    prev_users = set()
+    if args.resume:
+        for root, dirs, files in os.walk(args.resume):
+            for f in files:
+                with open(os.path.join(root, f)) as fin:
+                    data = json.load(fin)
+                for user in data:
+                    prev_users.add(user)
+
     for user in user_data:
+        if user in prev_users:  # Skip this user if already found
+            continue
         _id = user["id"]
 
         if not args.only_following:  # Skip followers
