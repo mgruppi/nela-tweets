@@ -59,10 +59,10 @@ query_tweets = " SELECT d.source, d.id, count(distinct t.article_id) as tweets F
                  " GROUP BY d.id"
 
 with open("avg-tweets.csv", "w") as fout:
-    fout.write("source,article_id,tweets\n")
+    fout.write("source;article_id;tweets\n")
     for i, path in enumerate(files):
         con = sqlite3.connect(path)
         result = con.execute(query_tweets)
         for row in result.fetchall():
-            fout.write("%s,%s,%s\n" % (row[0], row[1], row[2]))
+            fout.write("%s;%s;%s\n" % (row[0], row[1], row[2]))
 
