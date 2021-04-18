@@ -53,13 +53,13 @@ Queries the number of embedded tweet observed in each article of the database co
 That is, this query is conditioned on an article containing an embedded tweet. Articles with no embedded
 tweets are disregarded.
 """
-query_tweets = " SELECT d.source, d.id, count(distinct t.article_id) as tweets FROM " \
+query_tweets = " SELECT d.source, d.date, count(distinct t.article_id) as tweets FROM " \
                  " tweet t INNER JOIN newsdata d " \
                  " ON t.article_id = d.id " \
                  " GROUP BY d.id"
 
 with open("avg-tweets.csv", "w") as fout:
-    fout.write("source;article_id;tweets\n")
+    fout.write("source;date;tweets\n")
     for i, path in enumerate(files):
         con = sqlite3.connect(path)
         result = con.execute(query_tweets)
