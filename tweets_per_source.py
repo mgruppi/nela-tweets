@@ -10,6 +10,7 @@ query = " SELECT d.source, count(*) as tweets, count(distinct article_id) as art
         " ON t.article_id = d.id " \
         " GROUP BY source"
 
+
 print(query)
 tweet_count = dict()
 for i, path in enumerate(files):
@@ -45,3 +46,23 @@ with open(path_out, "w") as fout:
                                                                 tweet_count[src][4], tweet_count[src][5],
                                                                 article_count[src][0], article_count[src][1],
                                                                 article_count[src][2]))
+
+
+"""
+Queries the number of embedded tweet observed in each article of the database containing a tweet.
+That is, this query is conditioned on an article containing an embedded tweet. Articles with no embedded
+tweets are disregarded.
+"""
+query_tweets = " SELECT d.source, d.id, count(distinct t.article_id) as tweets FROM " \
+                 " tweet t INNER JOIN newsdata d " \
+                 " ON t.article_id = d.id " \
+                 " GROUP BY d.id"
+
+with open("avg-tweets.csv", "w") as fout:
+    fout.write("source,article_id,tweets\n")
+    for i, path in enumerate(files):
+        con = sqlite3.connect(path)
+        result = con.execute(query_tweets)
+        for row in result.fetchall():
+            fout.write("%s,%d,%d\n" % (row[0], row[1], row[2]))
+

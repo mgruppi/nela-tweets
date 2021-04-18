@@ -22,14 +22,14 @@ do
 done
 
 
-for f in "$path2"/*
-do
-  echo "$f"
-  output="$(basename $f)"
-  output="${output/.txt/.gml}"
-  echo "$output"
-  python3 network.py "networks/0.75/network-$output" \
-          --rowid "$f" \
-          --p_threshold="$p_threshold" \
+#for f in "$path2"/*
+#do
+#  echo "$f"
+#  output="$(basename $f)"
+#  output="${output/.txt/.gml}"
+#  echo "$output"
+#  python3 network.py "networks/0.75/network-$output" \
+#          --rowid "$f" \
+#          --p_threshold="$p_threshold" \
 #	        --exclude_authors "$exclude"
-done
+#done
