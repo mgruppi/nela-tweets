@@ -64,5 +64,5 @@ with open("avg-tweets.csv", "w") as fout:
         con = sqlite3.connect(path)
         result = con.execute(query_tweets)
         for row in result.fetchall():
-            fout.write("%s,%d,%d\n" % (row[0], row[1], row[2]))
+            fout.write("%s,%s,%s\n" % (row[0], row[1], row[2]))
 
