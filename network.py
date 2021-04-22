@@ -163,7 +163,7 @@ def build_network(tweets, user_data, labels, p_threshold, min_links=5, exclude_a
         else:
             cred = "unlabeled"
         g.add_node(src, class_="news", credibility=cred)
-        edges[(t_author, src)] += 1 / (np.log(followers + 1e-6))
+        edges[(t_author, src)] += 1 # / (np.log(followers + 1e-6))
 
     if p_threshold is None:
         x = np.array(list(edges.values()))
@@ -173,13 +173,15 @@ def build_network(tweets, user_data, labels, p_threshold, min_links=5, exclude_a
         if edges[e] > p_threshold:
             g.add_edge(e[0], e[1], weight=edges[e])
 
-    to_remove = [node for node, degree in g.degree() if degree < min_links]
+    to_remove = [node for node, degree in g.degree() if degree < min_links and g.nodes[node]["class_"] == "twitter"]
     g.remove_nodes_from(to_remove)
 
     return g
 
 
-def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_authors={}):
+def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_authors={},
+                         scaling=False,
+                         alpha=1):
     """
     Builds a network of source-source relationships.
     Two nodes u, v represent sources that are connected if they share a common embedded tweet author.
@@ -188,6 +190,8 @@ def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_au
     :param labels: Source labels.
     :param p_threshold: Edge weight cutoff. If `None`, use the distribution mean as cutoff.
     :param exclude_authors: (set) Authors to exclude when building network.
+    :param scaling: If True, apply scaling to links based on the number of followers each user has.
+    :param alpha: Multiplying factor for how many deviations above the mean to apply the cutoff (default=1).
     :return: g NetworkX undirected graph.
     """
 
@@ -234,8 +238,8 @@ def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_au
             common_refs = set.intersection(set(sources[u]), set(sources[v]))
             prob = 0
             for author in common_refs:
-                if author in user_data:
-                    scaling_factor = 1/(1e-5+np.log(user_data[author]["public_metrics"]["followers_count"]))
+                if author in user_data and scaling is True:
+                    scaling_factor = 1/(np.log(1e-6+user_data[author]["public_metrics"]["followers_count"]))
                 else:
                     scaling_factor = 1
                 prob += sources[u][author]*sources[v][author] * scaling_factor
@@ -247,7 +251,7 @@ def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_au
     print("Mean edge weight(prob):", x.mean(), "+-", x.std())
 
     if p_threshold is None:
-        p_threshold = x.mean()
+        p_threshold = x.mean() + alpha*x.std()
 
     e_bunch_filter = list()
 
@@ -263,9 +267,9 @@ def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_au
             g.nodes[n]["class"] = "news"
             if labels[n] == "0":
                 g.nodes[n]["cred"] = 1.0
-            elif labels[n] == "1" or labels[n] == "2":
+            elif labels[n] == "1":
                 g.nodes[n]["cred"] = -1.0
-            else:
+            elif labels[n] == "2":
                 g.nodes[n]["cred"] = 0.0
         else:
             g.nodes[n]["credibility"] = "unlabeled"
