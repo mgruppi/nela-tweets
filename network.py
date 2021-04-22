@@ -163,7 +163,7 @@ def build_network(tweets, user_data, labels, p_threshold, min_links=5, exclude_a
         else:
             cred = "unlabeled"
         g.add_node(src, class_="news", credibility=cred)
-        edges[(t_author, src)] += 1 # / (np.log(followers + 1e-6))
+        edges[(t_author, src)] += 1  # / (np.log(followers + 1e-6))
 
     if p_threshold is None:
         x = np.array(list(edges.values()))

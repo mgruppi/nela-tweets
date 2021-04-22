@@ -10,7 +10,7 @@ import pandas as pd
 
 
 path_user_data = "user_data/user_data.json"
-path_db = "../data/dataverse/release/nela-gt-2020.db"
+path_db = "../data/nela/nela-gt-2020.db"
 
 with open(path_user_data) as fin:
     user_data = json.load(fin)
