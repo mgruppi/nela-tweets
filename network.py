@@ -5,6 +5,7 @@ import re
 import numpy as np
 import json
 from collections import defaultdict
+from sklearn.metrics import pairwise_distances
 
 
 def load_user_data(path):
@@ -89,13 +90,13 @@ def get_tweet_author(idx):
     :return author: Username of the tweet author. Returns `None` if it fails to retrieve the username.
     """
     if idx is None:
-        return None
+        return "[UNKNOWN]"
     regex = re.compile("twitter.com/(?P<author>\w+)")
     result = regex.search(idx)
 
     if result:
         return result.groups()[0]
-    return None
+    return "[UNKNOWN]"
 
 
 def get_tweet_authors(ids, return_counts=False):
@@ -126,7 +127,7 @@ def get_tweet_authors(ids, return_counts=False):
     return authors
 
 
-def build_network(tweets, user_data, labels, p_threshold, min_links=5, exclude_authors={}):
+def build_user_network(tweets, user_data, labels, p_threshold, min_links=5, exclude_authors={}):
     """
     Builds the network of source-tweet interaction.
     By default, it connects sources to twitter accounts based on whether a source embeds a tweet by that user.
@@ -279,6 +280,100 @@ def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_au
     return g
 
 
+def binary_overlap(x, y):
+    """
+    Returns how many common users are cited in vectors x and y.
+    There is no weighting, x and y are matched whenever x[i] and y[i] are non-zero.
+    :param x: d dimensional array.
+    :param y:  d dimensiona array.
+    :return: s (np.int32) number of matches in x & y.
+    """
+    return ((x != 0) & (y != 0)).astype(np.int32).sum()
+
+
+def jaccard_index(x, y):
+    """
+    Returns the jaccard index between two binary input vectors x and y.
+    The jaccard index is computed by J = |x * y|/|x + y|.
+    Where * denotes set intersection and + denotes set union.
+    If x or y are not binary, the operation will be applied to its binarized versions.
+    :param x: Input vector (size d).
+    :param y: Input vector (size d).
+    :return: J the jaccard index between x and y.
+    """
+
+    return ((x != 0) & (y != 0)).astype(np.int32).sum() / ((x != 0) | (y != 0)).astype(np.int32).sum()
+
+
+def build_network(tweets, labels, metric="overlap",
+                  nodes="sources"):
+    """
+    Construct network with input tweets.
+    :param tweets: Tweets from NELA database.
+    :param labels: Source labels.
+    :param metric: Metric to use when computing network edges.
+    :param nodes: (str) Use "sources" for network of sources and "users" for a network of Twitter users.
+    :return: NetworkX graph g.
+    """
+
+    t_ids = [clean_tweet_id(t[2]) for t in tweets]
+    authors = sorted({get_tweet_author(_id) for _id in t_ids})
+    sources = sorted({t[1] for t in tweets})
+    n_authors = len(authors)
+    n_sources = len(sources)
+
+    source_id = {s: i for i, s in enumerate(sources)}
+    author_id = {a: i for i, a in enumerate(authors)}
+
+    print("Sources: %d | Authors: %d" % (len(sources), len(authors)))
+
+    m = np.zeros((n_sources, n_authors), dtype=np.int32)
+
+    for t in tweets:
+        _id = clean_tweet_id(t[2])
+        _username = get_tweet_author(_id)
+        if _username is None:
+            continue
+        i = source_id[t[1]]
+        j = author_id[_username]
+        m[i][j] += 1
+
+    if nodes == "users":  # Transpose matrix to compute user network.
+        m = m.T
+    if metric == "overlap":
+        m_adj = pairwise_distances(m, metric=binary_overlap)
+    elif metric == "jaccard":
+        m_adj = pairwise_distances(m, metric=jaccard_index)
+    elif metric == "cosine":
+        m_adj = pairwise_distances(m, metric="cosine")
+        m_adj = 1 - m_adj  # Convert cosine distance to similarity
+
+    np.fill_diagonal(m_adj, 0)  # Prevent self-loops
+    g = nx.from_numpy_matrix(m_adj)
+
+    if nodes == "sources":
+        g = nx.relabel.relabel_nodes(g, {i: s for i, s in enumerate(sources)})
+        print("Setting node attributes...")
+        for n in g.nodes:
+            if n in labels:
+                g.nodes[n]["credibility"] = labels[n]
+                g.nodes[n]["class"] = "news"
+                if labels[n] == "0":
+                    g.nodes[n]["cred"] = 1.0
+                elif labels[n] == "1":
+                    g.nodes[n]["cred"] = -1.0
+                elif labels[n] == "2":
+                    g.nodes[n]["cred"] = 0.0
+            else:
+                g.nodes[n]["credibility"] = "unlabeled"
+                g.nodes[n]["class"] = "news"
+                g.nodes[n]["cred"] = 0.0
+    elif nodes == "users":
+        g = nx.relabel.relabel_nodes(g, {i: a for i, a in enumerate(authors)})
+
+    return g
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=str, help="Path to output network.")
@@ -286,6 +381,8 @@ def main():
     parser.add_argument("--p_threshold", type=float, default=None, help="Cutoff threshold for edge weights.")
     parser.add_argument("--exclude_authors", type=str, default={}, nargs="+",
                         help="Authors to ignore when building the network.")
+    parser.add_argument("--metric", choices=["overlap", "cosine", "jaccard"], default="jaccard",
+                        help="Metric used when building the network.")
     parser.add_argument("--bipartite", action="store_true", help="Create graph with both source and twitter nodes.")
     args = parser.parse_args()
 
@@ -316,16 +413,14 @@ def main():
     t_ids = [t[2] for t in tweets]
     t_authors = get_tweet_authors(t_ids, return_counts=True)
 
-    found = sum(author in user_data for author in t_authors)
-
-    print("Authors", found, len(t_authors))
+    # found = sum(author in user_data for author in t_authors)
+    # print("Authors", found, len(t_authors))
     print("Loaded %d tweets from %d authors." % (len(tweets), len(t_authors)))
 
     if args.bipartite:
-        g = build_network(tweets, user_data, labels, args.p_threshold, exclude_authors=exclude_authors)
+        g = build_user_network(tweets, user_data, labels, args.p_threshold, exclude_authors=exclude_authors)
     else:
-        g = build_source_network(tweets, user_data, labels, p_threshold=args.p_threshold,
-                                 exclude_authors=exclude_authors)
+        g = build_network(tweets, labels, args.metric)
 
     print(len(g), "nodes", len(g.edges), "edges.")
     nx.write_gml(g, path_gml)
