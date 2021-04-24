@@ -5,7 +5,7 @@ import pandas as pd
 import os
 import json
 import numpy as np
-from scipy.stats import spearmanr, pearsonr
+from scipy.stats import spearmanr, pearsonr, f_oneway, ttest_ind
 from datetime import datetime
 
 """
@@ -97,6 +97,8 @@ if plot_follower_distributions:
                             color="#f95d6a", linewidth=0)
                 ax.legend()
                 fig.savefig("../results/cited-followers-%s.pdf" % f.split(".")[0], format="pdf")
+                _s, _p = f_oneway(x_rel["followers"], x_unr["followers"])
+                print(f, " | F-test", _s, _p)
         plt.clf()
 
     # Plot distributions of tweet counts per source
