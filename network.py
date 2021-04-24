@@ -162,7 +162,7 @@ def build_user_network(tweets, user_data, labels, p_threshold, min_links=5, excl
         if src in labels:
             cred = labels[src]
         else:
-            cred = "unlabeled"
+            cred = -1
         g.add_node(src, class_="news", credibility=cred)
         edges[(t_author, src)] += 1  # / (np.log(followers + 1e-6))
 
@@ -180,7 +180,7 @@ def build_user_network(tweets, user_data, labels, p_threshold, min_links=5, excl
     return g
 
 
-def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_authors={},
+def build_source_network(tweets, user_data, labels, source_bias, p_threshold=None, exclude_authors={},
                          scaling=False,
                          alpha=1):
     """
@@ -264,18 +264,12 @@ def build_source_network(tweets, user_data, labels, p_threshold=None, exclude_au
     print("Setting node attributes...")
     for n in g.nodes:
         if n in labels:
+            g.nodes[n]["bias"] = source_bias[n]
             g.nodes[n]["credibility"] = labels[n]
             g.nodes[n]["class"] = "news"
-            if labels[n] == "0":
-                g.nodes[n]["cred"] = 1.0
-            elif labels[n] == "1":
-                g.nodes[n]["cred"] = -1.0
-            elif labels[n] == "2":
-                g.nodes[n]["cred"] = 0.0
         else:
-            g.nodes[n]["credibility"] = "unlabeled"
+            g.nodes[n]["credibility"] = -1
             g.nodes[n]["class"] = "news"
-            g.nodes[n]["cred"] = 0.0
 
     return g
 
@@ -305,20 +299,24 @@ def jaccard_index(x, y):
     return ((x != 0) & (y != 0)).astype(np.int32).sum() / ((x != 0) | (y != 0)).astype(np.int32).sum()
 
 
-def build_network(tweets, labels, metric="overlap",
-                  nodes="sources"):
+def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources",
+                  min_count=0,
+                  min_weight=0.1):
     """
     Construct network with input tweets.
     :param tweets: Tweets from NELA database.
-    :param labels: Source labels.
+    :param labels: Dictionary of source credibility labels.
+    :param source_bias: Dictionary of source bias ratings.
     :param metric: Metric to use when computing network edges.
-    :param nodes: (str) Use "sources" for network of sources and "users" for a network of Twitter users.
+    :param nodes: (str) Use "sources" for network of sources and "authors" for a network of Twitter users.
+    :param min_count: (int) Remove nodes with fewer than `min_count` occurrences (discard row if sum < min_count).
+    :param min_weight: (int) Remove edges whose weights are less than `min_weight`.
     :return: NetworkX graph g.
     """
 
     t_ids = [clean_tweet_id(t[2]) for t in tweets]
-    authors = sorted({get_tweet_author(_id) for _id in t_ids})
-    sources = sorted({t[1] for t in tweets})
+    authors = np.array(sorted({get_tweet_author(_id) for _id in t_ids}))
+    sources = np.array(sorted({t[1] for t in tweets}))
     n_authors = len(authors)
     n_sources = len(sources)
 
@@ -338,8 +336,13 @@ def build_network(tweets, labels, metric="overlap",
         j = author_id[_username]
         m[i][j] += 1
 
-    if nodes == "users":  # Transpose matrix to compute user network.
+    if nodes == "authors":  # Transpose matrix to compute user network.
         m = m.T
+    bin_mask = ((m > 0).sum(axis=1)) >= min_count
+    m = m[bin_mask]  # Select only rows that have min_count non-zero entries.
+
+    print("Distance matrix", m.shape)
+
     if metric == "overlap":
         m_adj = pairwise_distances(m, metric=binary_overlap)
     elif metric == "jaccard":
@@ -348,28 +351,24 @@ def build_network(tweets, labels, metric="overlap",
         m_adj = pairwise_distances(m, metric="cosine")
         m_adj = 1 - m_adj  # Convert cosine distance to similarity
 
+    # Filter minimum edge weights
+    m_adj = np.maximum(m_adj-min_weight, 0)
     np.fill_diagonal(m_adj, 0)  # Prevent self-loops
     g = nx.from_numpy_matrix(m_adj)
 
     if nodes == "sources":
-        g = nx.relabel.relabel_nodes(g, {i: s for i, s in enumerate(sources)})
+        g = nx.relabel.relabel_nodes(g, {i: s for i, s in enumerate(sources[bin_mask])})
         print("Setting node attributes...")
         for n in g.nodes:
             if n in labels:
+                g.nodes[n]["bias"] = source_bias[n]
                 g.nodes[n]["credibility"] = labels[n]
                 g.nodes[n]["class"] = "news"
-                if labels[n] == "0":
-                    g.nodes[n]["cred"] = 1.0
-                elif labels[n] == "1":
-                    g.nodes[n]["cred"] = -1.0
-                elif labels[n] == "2":
-                    g.nodes[n]["cred"] = 0.0
             else:
-                g.nodes[n]["credibility"] = "unlabeled"
+                g.nodes[n]["credibility"] = -1
                 g.nodes[n]["class"] = "news"
-                g.nodes[n]["cred"] = 0.0
-    elif nodes == "users":
-        g = nx.relabel.relabel_nodes(g, {i: a for i, a in enumerate(authors)})
+    elif nodes == "authors":
+        g = nx.relabel.relabel_nodes(g, {i: a for i, a in enumerate(authors[bin_mask])})
 
     return g
 
@@ -381,9 +380,12 @@ def main():
     parser.add_argument("--p_threshold", type=float, default=None, help="Cutoff threshold for edge weights.")
     parser.add_argument("--exclude_authors", type=str, default={}, nargs="+",
                         help="Authors to ignore when building the network.")
-    parser.add_argument("--metric", choices=["overlap", "cosine", "jaccard"], default="jaccard",
+    parser.add_argument("--min_count", type=int, default=0, help="Min count parameter for build_network().")
+    parser.add_argument("--min_weight", type=float, default=0, help="Edge weight cutoff.")
+    parser.add_argument("--metric", choices=["overlap", "cosine", "jaccard"], default="overlap",
                         help="Metric used when building the network.")
     parser.add_argument("--bipartite", action="store_true", help="Create graph with both source and twitter nodes.")
+    parser.add_argument("--authors", action="store_true", help="Create network where nodes are authors.")
     args = parser.parse_args()
 
     path_user_data = "user_data/user_data.json"
@@ -395,8 +397,6 @@ def main():
     else:
         row_ids = None
 
-    exclude_authors = set(args.exclude_authors)
-
     user_data = load_user_data(path_user_data)
 
     print("-- User data", len(user_data))
@@ -404,7 +404,13 @@ def main():
     path_labels = "data/labels.csv"
     with open(path_labels) as fin:
         fin.readline()
-        labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
+        # labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
+        labels = dict()
+        source_bias = dict()
+        for line in fin:
+            source, country, label, bias, _ = line.strip().split(",", 4)
+            labels[source] = int(label)
+            source_bias[source] = bias
 
     path = "../data/nela/nela-gt-2020.db"
     con = sqlite3.connect(path)
@@ -417,10 +423,15 @@ def main():
     # print("Authors", found, len(t_authors))
     print("Loaded %d tweets from %d authors." % (len(tweets), len(t_authors)))
 
-    if args.bipartite:
-        g = build_user_network(tweets, user_data, labels, args.p_threshold, exclude_authors=exclude_authors)
+    if args.authors:
+        g = build_network(tweets, labels, source_bias, args.metric,
+                          nodes="authors",
+                          min_count=args.min_count,
+                          min_weight=args.min_weight)
     else:
-        g = build_network(tweets, labels, args.metric)
+        g = build_network(tweets, labels, source_bias, args.metric,
+                          min_count=args.min_count,
+                          min_weight=args.min_weight)
 
     print(len(g), "nodes", len(g.edges), "edges.")
     nx.write_gml(g, path_gml)

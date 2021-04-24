@@ -7,8 +7,7 @@ exclude="realDonaldTrump"
 
 p_threshold=0
 
-#path1="topics/0.5"
-path1="topics/0.5_april_20"
+path1="topics/0.5"
 path2="topics/0.75"
 
 for f in "$path1"/*
@@ -17,11 +16,15 @@ do
   output="$(basename $f)"
   output="${output/.txt/.gml}"
   echo "$output"
-  python3 network.py "networks/0.5_april_20/network-$output" \
+  python3 network.py "networks/0.5/network-sources-$output" \
           --rowid "$f"  \
-	        --exclude_authors "$exclude" \
-	        # --bipartite
-	        # --p_threshold 0.00012
+          --metric jaccard  \
+
+  python3 network.py "networks/0.5/network-authors-$output" \
+	        --rowid "$f"  \
+	        --metric overlap  \
+	        --authors \
+	        --min_count 5
 done
 
 
