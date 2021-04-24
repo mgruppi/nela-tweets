@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sb
 
 """
 Plots figures showing number of Tweets per year (2018, 2019, 2020) and per source.
@@ -50,12 +51,6 @@ drop_zeros = True  # Drop rows that contains a zero in either of tweets_2018, tw
 split_by_label = True  # Split number of articles/tweets by credibility labels.
 
 
-labels_file = "../data/nela/labels.csv"
-
-with open(labels_file) as fin:
-    fin.readline()
-    data = dict(map(lambda s: s.strip().split(","), fin.readlines()))
-
 font = {
     "family": "Liberation Sans",
     "weight": "normal",
@@ -65,7 +60,11 @@ matplotlib.rc('font', **font)
 
 with open("data/labels.csv") as fin:
     fin.readline()  # remove header
-    labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
+    # labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
+    labels = dict()
+    for line in fin:
+        source, country, label, bias, _ = line.strip().split(",", 4)
+        labels[source] = int(label)
 
 df = pd.read_csv("data/tweets-per-source.csv")
 
@@ -86,8 +85,8 @@ print("   + 2019:", df["tweets_2019"].sum(), df["articles_2019"].sum(), df["twee
 print("   + 2020:", df["tweets_2020"].sum(), df["articles_2020"].sum(), df["tweet_articles_2020"].sum())
 
 
-sources_reliable = [s for s in labels if labels[s] == "0"]
-sources_unreliable = [s for s in labels if labels[s] == "1"]
+sources_reliable = [s for s in labels if labels[s] == 0]
+sources_unreliable = [s for s in labels if labels[s] == 1]
 
 df_rel = df[(df["source"].isin(sources_reliable))]
 df_unr = df[(df["source"].isin(sources_unreliable))]

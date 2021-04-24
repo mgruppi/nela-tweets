@@ -32,7 +32,7 @@ font = {
 }
 matplotlib.rc('font', **font)
 
-labels_file = "../../data/nela/labels.csv"
+labels_file = "../data/labels.csv"
 data_file = "../data/author-source.csv"
 user_data_file = "../user_data/user_data.json"
 
@@ -46,7 +46,11 @@ plot_age_distribution = True
 
 with open(labels_file) as fin:
     fin.readline()  # remove header
-    labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
+    labels = dict()
+    # labels = dict(map(lambda s: s.strip().split(","), fin.readlines()))
+    for line in fin:
+        source, country, label, bias, _ = line.strip().split(",", 4)
+        labels[source] = int(label)
 
 df = pd.read_csv(data_file)
 series_l = pd.Series([int(labels[s]) if s in labels else -1 for s in df["source"]])
@@ -78,7 +82,7 @@ if plot_follower_distributions:
 
     plt.clf()
 
-    for root, dirs, files in os.walk("../topics/0.5_april_20"):
+    for root, dirs, files in os.walk("../topics/0.5"):
         for f in files:
             with open(os.path.join(root, f)) as fin:
                 fig, ax = plt.subplots()
@@ -133,16 +137,15 @@ df_rel = df[(df["label"] == 0) & (df["source"].isin(sources_in))]
 df_unr = df[(df["label"] == 1) & (df["source"].isin(sources_in))]
 
 
-# df_rel = df_rel.drop_duplicates(["source", "author"])
-# df_unr = df_unr.drop_duplicates(["source", "author"])
-# df = df.drop_duplicates(["source", "author"])
+df_rel = df_rel.drop_duplicates(["source", "author"])
+df_unr = df_unr.drop_duplicates(["source", "author"])
+df = df.drop_duplicates(["source", "author"])
 
 for d, name in zip([df_rel, df_unr, df], ["rel", "unr", "all"]):
-
     print("=====", name)
     # d = d[~d["author"].isin(exclude_authors)]
     # Compute the correlation between no. of followers and prob. of being cited in the news.
-    num_cited = dict(d["author"].value_counts())
+    num_cited = dict(d["author"].value_counts()/len(df["source"].unique()))
     num_followers = d.drop_duplicates(["author"])[["author", "followers"]].set_index("author").to_dict("index")
 
     sus = len(d[d["followers"] == -1].drop_duplicates(["author"]))
@@ -161,8 +164,8 @@ for d, name in zip([df_rel, df_unr, df], ["rel", "unr", "all"]):
         #       end="\\\\\n",
         #       sep=" & ")
         ver = "Yes" if usr in user_data and user_data[usr]["verified"] is True else "No"
-        print(usr, num_cited[usr], num_followers[usr]["followers"], ver, get_account_age(user_data[usr])
-              if usr in user_data else None,
+        print(usr, "%2d" % (100*num_cited[usr]), num_followers[usr]["followers"]
+              if usr in user_data else "\\emph{Suspended}",
               end=" \\\\\n",
               sep=" & ")
     print("---------")
