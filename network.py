@@ -1,4 +1,5 @@
 import networkx as nx
+from networkx.algorithms import community
 import argparse
 import sqlite3
 import re
@@ -285,10 +286,22 @@ def binary_overlap(x, y):
     return ((x != 0) & (y != 0)).astype(np.int32).sum()
 
 
+def prob_overlap(x, y):
+    """
+    Returns the probability of overlap between vectors x and y, calculated as sum(xi * yi).
+    :param x: Vector of probabilities.
+    :param y: Vector of probabilities.
+    :return: p - the overlap probability between x and y.
+    """
+    p = np.multiply(x, y).sum()
+    return p
+
+
 def jaccard_index(x, y):
     """
     Returns the jaccard index between two binary input vectors x and y.
     The jaccard index is computed by J = |x * y|/|x + y|.
+    If `frequency` is given, each user i is weighted as 1/frequency[i].
     Where * denotes set intersection and + denotes set union.
     If x or y are not binary, the operation will be applied to its binarized versions.
     :param x: Input vector (size d).
@@ -296,12 +309,24 @@ def jaccard_index(x, y):
     :return: J the jaccard index between x and y.
     """
 
-    return ((x != 0) & (y != 0)).astype(np.int32).sum() / ((x != 0) | (y != 0)).astype(np.int32).sum()
+    return ((x != 0) & (y != 0)).astype(np.float32).sum()/((x != 0) | (y != 0)).astype(np.float32).sum()
+
+
+def get_overlap(x, y):
+    """
+    Returns a binary mask with the overlap between non-zero entries in x and y (common authors or sources).
+    :param x: Input vector of size d.
+    :param y: Input vector of size d.
+    :return z: Binary mask of overlapping authors.
+    """
+
+    return (x != 0) & (y != 0)
 
 
 def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources",
                   min_count=0,
-                  min_weight=0.1):
+                  min_weight=0.1,
+                  use_frequency=False):
     """
     Construct network with input tweets.
     :param tweets: Tweets from NELA database.
@@ -311,6 +336,8 @@ def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources"
     :param nodes: (str) Use "sources" for network of sources and "authors" for a network of Twitter users.
     :param min_count: (int) Remove nodes with fewer than `min_count` occurrences (discard row if sum < min_count).
     :param min_weight: (int) Remove edges whose weights are less than `min_weight`.
+    :param use_frequency: (bool) If True, importance of links is measured by the inverse frequency of embedded tweets
+                            for that user.
     :return: NetworkX graph g.
     """
 
@@ -330,7 +357,7 @@ def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources"
     for t in tweets:
         _id = clean_tweet_id(t[2])
         _username = get_tweet_author(_id)
-        if _username is None:
+        if _username is None or _username == "[UNKNOWN]":
             continue
         i = source_id[t[1]]
         j = author_id[_username]
@@ -338,18 +365,30 @@ def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources"
 
     if nodes == "authors":  # Transpose matrix to compute user network.
         m = m.T
-    bin_mask = ((m > 0).sum(axis=1)) >= min_count
+    bin_mask = ((m > 0).sum(axis=1)) >= min_count  # Count the number of non-zero entries in each row.
     m = m[bin_mask]  # Select only rows that have min_count non-zero entries.
+
+    # Remove all-zero columns
+    m = m[:, ((m > 0).sum(axis=0)) > 0]
+
+    if use_frequency:
+        # m = (m > 0).astype(np.int32) / (m_frequency ** (1/5))
+        m_frequency = (m > 0).sum(axis=0) / m.shape[0]  # Compute the row frequency of each column
+        print(authors)
+        print(m_frequency)
+        pass
 
     print("Distance matrix", m.shape)
 
     if metric == "overlap":
-        m_adj = pairwise_distances(m, metric=binary_overlap)
+        m_adj = pairwise_distances(m, metric=binary_overlap).astype(np.int32)
     elif metric == "jaccard":
-        m_adj = pairwise_distances(m, metric=jaccard_index)
+        m_adj = pairwise_distances(m, metric=jaccard_index)  # binary jaccard
     elif metric == "cosine":
         m_adj = pairwise_distances(m, metric="cosine")
         m_adj = 1 - m_adj  # Convert cosine distance to similarity
+    elif metric == "inverse":
+        m_adj = pairwise_distances(m, metric=prob_overlap)
 
     # Filter minimum edge weights
     m_adj = np.maximum(m_adj-min_weight, 0)
@@ -357,6 +396,7 @@ def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources"
     g = nx.from_numpy_matrix(m_adj)
 
     if nodes == "sources":
+        node_id = {s: i for i, s in enumerate(sources[bin_mask])}
         g = nx.relabel.relabel_nodes(g, {i: s for i, s in enumerate(sources[bin_mask])})
         print("Setting node attributes...")
         for n in g.nodes:
@@ -367,6 +407,14 @@ def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources"
             else:
                 g.nodes[n]["credibility"] = -1
                 g.nodes[n]["class"] = "news"
+        print("Setting edge attributes...")
+        # for u, v, a in g.edges(data=True):
+        #     x = m[node_id[u]]
+        #     y = m[node_id[v]]
+        #     f_xy = (x+y)/2  # Get the user importance score between sources u and v
+        #     sorted_ids = np.argsort(f_xy)[::-1]  # Sort user ids based on importance
+        #     print(u, v, a, sorted(authors[sorted_ids][:5]))  # Get top 3 most important authors between u and v
+
     elif nodes == "authors":
         g = nx.relabel.relabel_nodes(g, {i: a for i, a in enumerate(authors[bin_mask])})
 
@@ -382,8 +430,9 @@ def main():
                         help="Authors to ignore when building the network.")
     parser.add_argument("--min_count", type=int, default=0, help="Min count parameter for build_network().")
     parser.add_argument("--min_weight", type=float, default=0, help="Edge weight cutoff.")
-    parser.add_argument("--metric", choices=["overlap", "cosine", "jaccard"], default="overlap",
+    parser.add_argument("--metric", choices=["overlap", "cosine", "jaccard", "inverse"], default="overlap",
                         help="Metric used when building the network.")
+    parser.add_argument("--use_frequency", action="store_true", help="Use frequency as measure of importance.")
     parser.add_argument("--bipartite", action="store_true", help="Create graph with both source and twitter nodes.")
     parser.add_argument("--authors", action="store_true", help="Create network where nodes are authors.")
     args = parser.parse_args()
@@ -427,11 +476,13 @@ def main():
         g = build_network(tweets, labels, source_bias, args.metric,
                           nodes="authors",
                           min_count=args.min_count,
-                          min_weight=args.min_weight)
+                          min_weight=args.min_weight,
+                          use_frequency=args.use_frequency)
     else:
         g = build_network(tweets, labels, source_bias, args.metric,
                           min_count=args.min_count,
-                          min_weight=args.min_weight)
+                          min_weight=args.min_weight,
+                          use_frequency=args.use_frequency)
 
     print(len(g), "nodes", len(g.edges), "edges.")
     nx.write_gml(g, path_gml)

@@ -73,7 +73,7 @@ dailykos,USA,2,left,2,0,0,0
 dailymail,UnitedKingdom,1,questionable-source,1,1,0,0
 dailymirror,UnitedKingdom,2,left-center,2,0,0,0
 dailyrecord,,0,center,4,0,0,0
-dailysignal,USA,-1,right,,0,0,0
+dailysignal,USA,0,right,3,0,0,0
 dailystormer,USA,1,questionable-source,0,1,0,0
 davidicke,UnitedKingdom,1,conspiracy-pseudoscience,0,0,1,0
 dcgazette,Unknown,1,questionable-source,1,1,0,0
@@ -124,7 +124,7 @@ healthsciencesinstitute,USA,1,conspiracy-pseudoscience,1,0,1,0
 healthyfoodhouse,Macedonia,1,conspiracy-pseudoscience,1,0,1,0
 healthyholisticliving,USA,1,conspiracy-pseudoscience,1,0,1,0
 heraldsun,Australia,0,right-center,3,0,0,0
-hotair,USA,-1,right,,0,0,0
+hotair,USA,0,right,3,0,0,0
 huffingtonpost,USA,2,left,2,0,0,0
 humansarefree,USA,1,conspiracy-pseudoscience,1,0,1,0
 iceagenow,USA,1,conspiracy-pseudoscience,1,0,1,0
@@ -168,7 +168,7 @@ motherjones,USA,0,left-center,4,0,0,0
 msnbc,USA,2,left,2,0,0,0
 nationalfile,USA,1,conspiracy-pseudoscience,1,0,1,0
 nationalinterest,USA,0,right-center,4,0,0,0
-nationalreview,USA,-1,right,,0,0,0
+nationalreview,USA,0,right,3,0,0,0
 naturalawakeningsmagazine,USA,1,conspiracy-pseudoscience,2,0,1,0
 naturalcures,UnitedKingdom,1,conspiracy-pseudoscience,2,0,1,0
 naturalhealth365,,1,conspiracy-pseudoscience,2,0,1,0
@@ -272,7 +272,7 @@ thegatewaypundit,USA,1,questionable-source,1,1,0,0
 thegreanvillepostbiasrating,USA,1,conspiracy-pseudoscience,2,0,1,0
 theguardian,UnitedKingdom,2,left-center,2,0,0,0
 theheartysoul,Canada,1,conspiracy-pseudoscience,2,0,1,0
-thehill,USA,-1,center,,0,0,0
+thehill,USA,0,center,3,0,0,0
 theindependent,UnitedKingdom,2,left-center,2,0,0,0
 theintercept,USA,0,left-center,3,0,0,0
 theirishtimes,Ireland,0,left-center,4,0,0,0
@@ -320,7 +320,7 @@ vigilantcitizen,USA,1,conspiracy-pseudoscience,1,0,1,0
 viralnewsnetwork,,1,conspiracy-pseudoscience,1,0,1,0
 vox,USA,0,left,3,0,0,0
 wakingtimes,USA,1,conspiracy-pseudoscience,1,0,1,0
-washingtonexaminer,,-1,right,,0,0,0
+washingtonexaminer,USA,2,right,2,0,0,0
 washingtonmonthly,USA,0,left-center,4,0,0,0
 washingtonpost,USA,0,left-center,4,0,0,0
 washingtontimes,USA,1,questionable-source,2,1,0,0
