@@ -187,13 +187,13 @@ def build_source_network(tweets, user_data, labels, source_bias, p_threshold=Non
     """
     Builds a network of source-source relationships.
     Two nodes u, v represent sources that are connected if they share a common embedded tweet author.
-    :param tweets: Tweet data.
-    :param user_data: Dictionary keyed by username, containing user information.
-    :param labels: Source labels.
-    :param p_threshold: Edge weight cutoff. If `None`, use the distribution mean as cutoff.
+    :param tweets: Tweets from NELA database.
+    :param user_data: Dictionary keyed by username, containing user metadata (follower/following counts, etc.).
+    :param labels: Source labels. These labels are saved as attributes of the source nodes.
+    :param p_threshold: Edge weight cutoff. If `None`, use the distribution mean as cutoff. Low values generate denser networks.
     :param exclude_authors: (set) Authors to exclude when building network.
     :param scaling: If True, apply scaling to links based on the number of followers each user has.
-    :param alpha: Multiplying factor for how many deviations above the mean to apply the cutoff (default=1).
+    :param alpha: Multiplying factor for how many deviations above the mean to apply the cutoff (default=1). Low values generate denser networks.
     :return: g NetworkX undirected graph.
     """
 
@@ -423,6 +423,7 @@ def build_network(tweets, labels, source_bias, metric="overlap", nodes="sources"
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("input", type=str, help="Path to NELA database")
     parser.add_argument("output", type=str, help="Path to output network.")
     parser.add_argument("--rowid", type=str, default=None, help="Path to csv file of rowids (to select articles).")
     parser.add_argument("--p_threshold", type=float, default=None, help="Cutoff threshold for edge weights.")
@@ -435,9 +436,11 @@ def main():
     parser.add_argument("--use_frequency", action="store_true", help="Use frequency as measure of importance.")
     parser.add_argument("--bipartite", action="store_true", help="Create graph with both source and twitter nodes.")
     parser.add_argument("--authors", action="store_true", help="Create network where nodes are authors.")
+    parser.add_argument("--user-data", dest="user_data", default=None,
+                        help="Path to user data JSON")
     args = parser.parse_args()
 
-    path_user_data = "user_data/user_data.json"
+    path_user_data = args.user_data
     path_gml = args.output
 
     if args.rowid:
@@ -446,7 +449,10 @@ def main():
     else:
         row_ids = None
 
-    user_data = load_user_data(path_user_data)
+    if args.user_data:
+        user_data = load_user_data(path_user_data)
+    else:
+        user_data = {}
 
     print("-- User data", len(user_data))
 
@@ -461,9 +467,9 @@ def main():
             labels[source] = int(label)
             source_bias[source] = bias
 
-    path = "../data/nela/nela-gt-2020.db"
-    con = sqlite3.connect(path)
+    con = sqlite3.connect(args.input)
 
+    print("Loading tweets...")
     tweets = load_all_tweets(con, row_ids=row_ids)
     t_ids = [t[2] for t in tweets]
     t_authors = get_tweet_authors(t_ids, return_counts=True)
@@ -489,7 +495,7 @@ def main():
     print("Saved to %s" % path_gml)
 
     with open(path_gml.replace(".gml", ".csv"), "w") as fout:
-        # Write ranking of most cited authors
+         # Write ranking of most cited authors
         fout.write("author,embedded_tweets\n")
         for author in sorted(t_authors, key=lambda a: t_authors[a], reverse=True):
             fout.write("%s,%d\n" % (author, t_authors[author]))
